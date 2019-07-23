@@ -2,7 +2,7 @@
 """
 Created on Fri Mar  8 14:56:56 2019
 
-@author: akay-w
+@author: a-whalen
 """
 
 import xml.etree.ElementTree as ET
@@ -114,43 +114,54 @@ def analyze(file, origtransinfo, edittransinfo, lang):
     return file_data_list
 
 def print_changes(changes, orig_flag, red, body, lang):
-    """
-    Takes in list of changes, and outputs list of 
-    formatted text to write in Excel with xlsxwriter
-    
-    changes: list of changes output by differ object
-    
-    orig_flag: boolean, True for original text and False for edited text.
-    Determines whether to search for added or deleted text in changes.
-    
-    red: xlsxwriter red text format
-    
-    body: xlsxwriter body text format
-    
-    lang: integer signifying European (1) or Asian (2) language
-    """
-    text_to_write = []
-    if orig_flag:
-        char = "-"
-    else:
-        char = "+"
-        
-    for token in changes:
-        if token.startswith(char):
-            text_to_write.append(red)
-            if lang == 1:
-                text_to_write.append(token[2:] + " ")
-            elif lang == 2:
-                text_to_write.append(token[2:])
-        elif token.startswith(" "):
-            if lang == 1:
-                text_to_write.append(token[2:] + " ")
-            elif lang == 2:
-                text_to_write.append(token[2:])
-    text_to_write.append(body)
-    
-    return text_to_write
-    
+            """
+            Takes in list of changes, and outputs list of 
+            formatted text to write in Excel with xlsxwriter if
+            there is more than one token, and returns a string if there is
+            only one token
+            
+            changes: list of changes output by differ object
+            
+            orig_flag: boolean, True for original text and False for edited text.
+            Determines whether to search for added or deleted text in changes.
+            
+            red: xlsxwriter red text format
+            
+            body: xlsxwriter body text format
+            
+            lang: integer signifying European (1) or Asian (2) language
+            """
+            text = ""
+            text_to_write = []
+            if orig_flag:
+                char = "-"
+            else:
+                char = "+"
+                
+            for token in changes:
+                if token.startswith(char):
+                    text = token[2:]
+                    text_to_write.append(red)
+                    if lang == 1:
+                        text_to_write.append(token[2:] + " ")
+                    elif lang == 2:
+                        text_to_write.append(token[2:])
+                elif token.startswith(" "):
+                    if lang == 1:
+                        text_to_write.append(token[2:] + " ")
+                        if text != "":
+                            text += " " + token[2:]
+                        else:
+                            text = token[2:]
+                    elif lang == 2:
+                        text_to_write.append(token[2:])
+                        text += token[2:]
+            text_to_write.append(body)
+            if len(text_to_write) > 3:
+                return text_to_write
+            else:
+                return text
+            
 def create_excel(savename, data_list, lang):
     """
     Creates an Excel report of the data, returns nothing.
@@ -168,7 +179,7 @@ def create_excel(savename, data_list, lang):
     wb = xlsxwriter.Workbook(savename)
     ws = wb.add_worksheet()
     
-    red = wb.add_format({'font_color': 'red'})
+    red = wb.add_format({'font_color': 'red','text_wrap': True, 'border': 1})
     header = wb.add_format({'text_wrap': True, 'align': 'center', 
                                   'bg_color': 'gray', 'border': 1})
     body = wb.add_format({'text_wrap': True, 'border': 1})
@@ -203,9 +214,15 @@ def create_excel(savename, data_list, lang):
             ws.write(row, editsrccol, editsrc, body)
         else:
             text_to_write = print_changes(src_changes, True, red, body, lang)
-            ws.write_rich_string(row, origsrccol, *text_to_write)
+            if len(text_to_write) > 3:
+                ws.write_rich_string(row, origsrccol, *text_to_write)
+            else:
+                ws.write(row, origsrccol, text_to_write, red)
             text_to_write = print_changes(src_changes, False, red, body, lang)
-            ws.write_rich_string(row, editsrccol, *text_to_write)
+            if len(text_to_write) > 3:
+                ws.write_rich_string(row, editsrccol, *text_to_write)
+            else:
+                ws.write(row, editsrccol, text_to_write, red)
             src_equal_flag = False
             total_src_equal_flag = False
         if not tar_changes:
@@ -213,9 +230,15 @@ def create_excel(savename, data_list, lang):
             ws.write(row, edittarcol, edittar, body)
         else:
             text_to_write = print_changes(tar_changes, True, red, body, lang)
-            ws.write_rich_string(row, origtarcol, *text_to_write)
+            if len(text_to_write) > 3:
+                ws.write_rich_string(row, origtarcol, *text_to_write)
+            else:
+                ws.write(row, origtarcol, text_to_write, red)
             text_to_write = print_changes(tar_changes, False, red, body, lang)
-            ws.write_rich_string(row, edittarcol, *text_to_write)
+            if len(text_to_write) > 3:
+                ws.write_rich_string(row, edittarcol, *text_to_write)
+            else:
+                ws.write(row, edittarcol, text_to_write, red)
             tar_equal_flag = False
         ws.write(row, commentcol, "", body)
         if src_equal_flag and tar_equal_flag:
