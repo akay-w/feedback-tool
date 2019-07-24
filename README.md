@@ -13,8 +13,6 @@ The tool will compare all of the original and final sdxliff files, and output an
 
 Known issues: 
 
-In the original commit, there was a problem where if the entire target segment has been changed, it doesn't correctly print the changed target segment, because the function to write rich text needs to have two arguments. I edited this, so the text should now be correctly printed. However, the cell border for applicable cells and red color is not showing up correctly, so I plan to fix this later.
-
 All tags are currently ignored. I'd like to add those in later, so that changes in formatting/placeholder tags can be seen.
 
-Doesn't work correctly if there are un-translated segments. I need to look into that further.
+Bugs where locked segments were not correctly processed and cell formats were not correctly applied for some segments have been fixed. Still looking for other problems.
