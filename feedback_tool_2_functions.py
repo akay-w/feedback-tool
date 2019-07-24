@@ -14,19 +14,19 @@ import xlsxwriter
 Segment = namedtuple('Segment', 'segid srctext tartext')
 
 def get_xliff_list(directory):
-    """
-    Returns list of sdlxliff files in a given directory,
-    including nested files in nested folders.
-    
-    directory: full path to directory to search for files
-    """
-    file_list = []
-    for root, dirs, files in os.walk(directory):
-        for file in files:
-            if file.endswith("sdlxliff"):
-                file_list.append(os.path.join(os.path.normpath(root), file))
-    return file_list
-
+            """
+            Returns list of sdlxliff files in a given directory,
+            including nested files in nested folders.
+            
+            directory: full path to directory to search for files
+            """
+            file_list = []
+            for root, dirs, files in os.walk(directory):
+                for file in files:
+                    if file.endswith("sdlxliff"):
+                        file_list.append(os.path.join(os.path.normpath(root), file))
+            return file_list
+        
 def parse_xliff(filepath):
     """
     Parses xliff file and returns a list of tuples containing the 
@@ -47,14 +47,16 @@ def parse_xliff(filepath):
     transinfo = []
     
     for x in root.iter(trans):
-        if x.attrib.get("translate")=="no":
-            continue
+        srctext = ""
+        tartext = ""
         segid = x.attrib.get("id")
         for y in x.iter():
             if "seg-source" in y.tag:
                 srctext = "".join(y.itertext())
             if "target" in y.tag:
                 tartext = "".join(y.itertext())
+        if srctext == "" and tartext == "":
+            continue
         seg = Segment(segid, srctext, tartext)
         transinfo.append(seg)                 
     return transinfo
@@ -92,76 +94,78 @@ def analyze(file, origtransinfo, edittransinfo, lang):
     for seg in range(len(origtransinfo)):
         src_changes = None
         tar_changes = None
-        if origtransinfo[seg].segid == edittransinfo[seg].segid:
-            origsrc = origtransinfo[seg].srctext
-            editsrc = edittransinfo[seg].srctext
-            if origsrc != editsrc:
-                if lang == 1:
-                    src_changes = get_difference(origsrc.split(), editsrc.split())
-                else:
-                    src_changes = get_difference(origsrc, editsrc)
-                
-            origtar = origtransinfo[seg].tartext
-            edittar = edittransinfo[seg].tartext
-            if origtar != edittar:
-                if lang == 1:
-                    tar_changes = get_difference(origtar.split(), edittar.split())
-                else:
-                    tar_changes = get_difference(origtar, edittar)
-                    
+        origsrc = ""
+        editsrc = ""
+        origtar = ""
+        edittar = ""
+        origsrc = origtransinfo[seg].srctext
+        editsrc = edittransinfo[seg].srctext
+        if origsrc != editsrc:
+            if lang == 1:
+                src_changes = get_difference(origsrc.split(), editsrc.split())
+            else:
+                src_changes = get_difference(origsrc, editsrc)
+            
+        origtar = origtransinfo[seg].tartext
+        edittar = edittransinfo[seg].tartext
+        if origtar != edittar:
+            if lang == 1:
+                tar_changes = get_difference(origtar.split(), edittar.split())
+            else:
+                tar_changes = get_difference(origtar, edittar)           
         file_data_list.append((file, origsrc, origtar, editsrc, edittar, src_changes, \
                           tar_changes))
     return file_data_list
 
 def print_changes(changes, orig_flag, red, body, lang):
-            """
-            Takes in list of changes, and outputs list of 
-            formatted text to write in Excel with xlsxwriter if
-            there is more than one token, and returns a string if there is
-            only one token
-            
-            changes: list of changes output by differ object
-            
-            orig_flag: boolean, True for original text and False for edited text.
-            Determines whether to search for added or deleted text in changes.
-            
-            red: xlsxwriter red text format
-            
-            body: xlsxwriter body text format
-            
-            lang: integer signifying European (1) or Asian (2) language
-            """
-            text = ""
-            text_to_write = []
-            if orig_flag:
-                char = "-"
-            else:
-                char = "+"
-                
-            for token in changes:
-                if token.startswith(char):
+    """
+    Takes in list of changes, and outputs list of 
+    formatted text to write in Excel with xlsxwriter if
+    there is more than one token, and returns a string if there is
+    only one token
+    
+    changes: list of changes output by differ object
+    
+    orig_flag: boolean, True for original text and False for edited text.
+    Determines whether to search for added or deleted text in changes.
+    
+    red: xlsxwriter red text format
+    
+    body: xlsxwriter body text format
+    
+    lang: integer signifying European (1) or Asian (2) language
+    """
+    text = ""
+    text_to_write = []
+    if orig_flag:
+        char = "-"
+    else:
+        char = "+"
+        
+    for token in changes:
+        if token.startswith(char):
+            text = token[2:]
+            text_to_write.append(red)
+            if lang == 1:
+                text_to_write.append(token[2:] + " ")
+            elif lang == 2:
+                text_to_write.append(token[2:])
+        elif token.startswith(" "):
+            if lang == 1:
+                text_to_write.append(token[2:] + " ")
+                if text != "":
+                    text += " " + token[2:]
+                else:
                     text = token[2:]
-                    text_to_write.append(red)
-                    if lang == 1:
-                        text_to_write.append(token[2:] + " ")
-                    elif lang == 2:
-                        text_to_write.append(token[2:])
-                elif token.startswith(" "):
-                    if lang == 1:
-                        text_to_write.append(token[2:] + " ")
-                        if text != "":
-                            text += " " + token[2:]
-                        else:
-                            text = token[2:]
-                    elif lang == 2:
-                        text_to_write.append(token[2:])
-                        text += token[2:]
-            text_to_write.append(body)
-            if len(text_to_write) > 3:
-                return text_to_write
-            else:
-                return text
-            
+            elif lang == 2:
+                text_to_write.append(token[2:])
+                text += token[2:]
+    text_to_write.append(body)
+    if len(text_to_write) > 3:
+        return text_to_write
+    else:
+        return text
+    
 def create_excel(savename, data_list, lang):
     """
     Creates an Excel report of the data, returns nothing.
@@ -179,7 +183,7 @@ def create_excel(savename, data_list, lang):
     wb = xlsxwriter.Workbook(savename)
     ws = wb.add_worksheet()
     
-    red = wb.add_format({'font_color': 'red','text_wrap': True, 'border': 1})
+    red = wb.add_format({'text_wrap': True, 'border': 1, 'font_color': 'red'})
     header = wb.add_format({'text_wrap': True, 'align': 'center', 
                                   'bg_color': 'gray', 'border': 1})
     body = wb.add_format({'text_wrap': True, 'border': 1})
@@ -214,12 +218,12 @@ def create_excel(savename, data_list, lang):
             ws.write(row, editsrccol, editsrc, body)
         else:
             text_to_write = print_changes(src_changes, True, red, body, lang)
-            if len(text_to_write) > 3:
+            if isinstance(text_to_write,list):
                 ws.write_rich_string(row, origsrccol, *text_to_write)
             else:
                 ws.write(row, origsrccol, text_to_write, red)
             text_to_write = print_changes(src_changes, False, red, body, lang)
-            if len(text_to_write) > 3:
+            if isinstance(text_to_write,list):
                 ws.write_rich_string(row, editsrccol, *text_to_write)
             else:
                 ws.write(row, editsrccol, text_to_write, red)
@@ -230,12 +234,12 @@ def create_excel(savename, data_list, lang):
             ws.write(row, edittarcol, edittar, body)
         else:
             text_to_write = print_changes(tar_changes, True, red, body, lang)
-            if len(text_to_write) > 3:
+            if isinstance(text_to_write,list):
                 ws.write_rich_string(row, origtarcol, *text_to_write)
             else:
                 ws.write(row, origtarcol, text_to_write, red)
             text_to_write = print_changes(tar_changes, False, red, body, lang)
-            if len(text_to_write) > 3:
+            if isinstance(text_to_write,list):
                 ws.write_rich_string(row, edittarcol, *text_to_write)
             else:
                 ws.write(row, edittarcol, text_to_write, red)
@@ -250,4 +254,3 @@ def create_excel(savename, data_list, lang):
         
     wb.close()
     return
-   
